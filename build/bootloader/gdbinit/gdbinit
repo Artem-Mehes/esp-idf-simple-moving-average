@@ -1,0 +1,2 @@
+source D:/Desktop/embedded/simple-moving-average/build/bootloader/gdbinit/symbols
+source D:/Desktop/embedded/simple-moving-average/build/bootloader/gdbinit/connect
