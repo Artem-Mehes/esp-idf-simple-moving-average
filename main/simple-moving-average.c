@@ -6,6 +6,7 @@
 
 #include "adc_reader.h"
 #include "board_config.h"
+#include "moving_average.h"
 
 static const char* TAG = "LDR";
 
@@ -16,7 +17,10 @@ void setup_led(void) {
 }
 
 void app_main(void) {
+  moving_average_t ldr_average;
+
   ESP_ERROR_CHECK(adc_reader_init(LDR_GPIO));
+  moving_average_init(&ldr_average);
 
   setup_led();
 
@@ -25,17 +29,22 @@ void app_main(void) {
 
     esp_err_t err = adc_reader_read(&raw_value);
 
-    const float u_adc = (float)raw_value * (3.3f / 4095.0f);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "ADC read failed: %s", esp_err_to_name(err));
+      vTaskDelay(pdMS_TO_TICKS(SAMPLE_PERIOD_MS));
+      continue;
+    }
+
+    const int filtered_value = moving_average_add(&ldr_average, raw_value);
+    const float u_adc =
+        (float)filtered_value * (U_FS_VOLTAGE / ADC_MAX_VALUE);
     const int led_state = (u_adc < 1.0f) ? 1 : 0;
+
     gpio_set_level(LED_PIN, led_state);
 
-    if (err == ESP_OK) {
-      ESP_LOGI(TAG, "ADC voltage: %.2f V", u_adc);
-      ESP_LOGI(TAG, "LED state: %s", led_state ? "ON" : "OFF");
-      ESP_LOGI(TAG, "Raw value: %d", raw_value);
-    } else {
-      ESP_LOGE(TAG, "ADC read failed: %s", esp_err_to_name(err));
-    }
+    ESP_LOGI(TAG, "Raw: %d, SMA: %d", raw_value, filtered_value);
+    ESP_LOGI(TAG, "ADC voltage: %.2f V", u_adc);
+    ESP_LOGI(TAG, "LED state: %s", led_state ? "ON" : "OFF");
 
     vTaskDelay(pdMS_TO_TICKS(SAMPLE_PERIOD_MS));
   }
