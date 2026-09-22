@@ -19,6 +19,7 @@ typedef struct {
   uint32_t target_brightness;
   int64_t last_sample_time_us;
   int64_t last_brightness_update_time_us;
+  int64_t last_log_time_us;
 } led_control_state_t;
 
 #define MILLISECONDS_TO_MICROSECONDS 1000LL
@@ -103,6 +104,7 @@ void app_main(void) {
       .target_brightness = 0,
       .last_sample_time_us = -SAMPLE_PERIOD_MS * MILLISECONDS_TO_MICROSECONDS,
       .last_brightness_update_time_us = 0,
+      .last_log_time_us = -LOG_PERIOD_MS * MILLISECONDS_TO_MICROSECONDS,
   };
 
   ESP_ERROR_CHECK(adc_reader_init(LDR_GPIO));
@@ -133,12 +135,17 @@ void app_main(void) {
             led_state.is_enabled ? mapped_brightness : 0;
         update_target_brightness(&led_state, new_target);
 
-        ESP_LOGI(TAG, "Raw: %d, SMA: %d, voltage: %.2f V", raw_value,
-                 filtered_value, u_adc);
-        ESP_LOGI(TAG, "LED: %s, current: %lu%%, target: %lu%%",
-                 led_state.is_enabled ? "enabled" : "disabled",
-                 (unsigned long)led_state.current_brightness,
-                 (unsigned long)led_state.target_brightness);
+        if (now_us - led_state.last_log_time_us >=
+            LOG_PERIOD_MS * MILLISECONDS_TO_MICROSECONDS) {
+          led_state.last_log_time_us = now_us;
+
+          ESP_LOGI(TAG, "Raw: %d, SMA: %d, voltage: %.2f V", raw_value,
+                   filtered_value, u_adc);
+          ESP_LOGI(TAG, "LED: %s, current: %lu%%, target: %lu%%",
+                   led_state.is_enabled ? "enabled" : "disabled",
+                   (unsigned long)led_state.current_brightness,
+                   (unsigned long)led_state.target_brightness);
+        }
       }
     }
 
